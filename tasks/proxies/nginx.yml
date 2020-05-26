@@ -1,9 +1,49 @@
 ---
-# Exposes the exporters via the webserver, in a password protected way.
-- name: "Create the vhosts"
+- name: Install nginx proxy
+  package:
+    name: nginx
+    state: present
+
+- name: Copy ssl key file
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dst }}"
+    owner: root
+    group: root
+    mode: '0644'
+  with_items:
+    - { src: "{{ ssl_cert_path }}.crt", dst: "{{ nginx_prometheus_tls_certificate_path }}" }
+    - { src: "{{ ssl_cert_path }}.key", dst: "{{ nginx_prometheus_tls_certificate_key_path }}" }
+
+- name: Create the vhosts
   template:
-    src: "etc/nginx/sites-enabled/template.conf"
-    dest: "/etc/nginx/sites-enabled/{{ item.name }}.conf"
+    src: "etc/nginx/sites-available/template.conf"
+    dest: "/etc/nginx/sites-available/{{ item.name }}.conf"
   with_items: "{{ prometheus_proxy_exporters }}"
-  ## This comes from the upstream geerlingguy.nginx task
-  notify: "reload nginx"
+  notify: reload nginx
+
+- name: Create vhost file for web ui
+  template:
+    src: etc/nginx/sites-available/prometheus.conf
+    dest: /etc/nginx/sites-available/prometheus.conf
+    mode: '0644' 
+  notify:
+    - reload nginx
+
+- name: make sure default site is desabled
+  file:
+    state: absent
+    path: /etc/nginx/sites-enabled/default
+  notify:
+    - reload nginx
+
+- name: Create links for sites-enabled
+  file:
+    state: link
+    src: "/etc/nginx/sites-available/{{ item.name }}.conf"
+    dest: "/etc/nginx/sites-enabled/{{ item.name }}.conf"
+  with_flattened:
+    - "{{ prometheus_proxy_exporters }}"
+    - [{ name: "prometheus" }]
+  notify:
+    - reload nginx

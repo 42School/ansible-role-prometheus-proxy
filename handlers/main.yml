@@ -1,0 +1,14 @@
+---
+- name: restart nginx
+  become: true
+  systemd:
+    daemon_reload: true
+    name: prometheus
+    state: restarted
+
+- name: reload nginx
+  become: true
+  systemd:
+    daemon_reload: true
+    name: prometheus
+    state: reloaded
